@@ -26,8 +26,8 @@ arb t = do
   events <- occasional t
   return $ events >>> hold init
 
-prop_abs_idempotent :: FRGen Bool
-prop_abs_idempotent =
+prop_abs :: FRGen Bool
+prop_abs =
   forall (arb 1) $ arr (abs @Double) >>> arr (>0.01)
 
 -- Sample with an end time
