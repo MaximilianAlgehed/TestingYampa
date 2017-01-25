@@ -1,5 +1,7 @@
 import FRP.Yampa
 
+type LoopTransferFunction = SF Double Double
+
 fork :: SF a (a, a)
 fork = arr id &&& arr id
 
