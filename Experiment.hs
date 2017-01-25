@@ -2,15 +2,6 @@
 import FRP.Yampa
 import Test.QuickCheck
 
-signal :: SF a Double
-signal = time >>> arr sin
-
-fork :: SF a (a, a)
-fork = arr id &&& arr id
-
-main = do
-  sequence_ $ map print $ take 63 $ embed signal (deltaEncode 0.1 [1, 1 ..])
-
 -- type Property a = a -> Bool
 type FRProp a = SF a  Bool
 type FRGen  a = Gen (SF () a)
@@ -18,15 +9,34 @@ type FRGen  a = Gen (SF () a)
 forall :: FRGen a -> FRProp a -> FRGen Bool
 forall gen prop = (>>> prop) <$> gen
 
+poisson :: Time -> Gen [Time]
+poisson t = sequence $ repeat $ (\u -> (0 - (log u))/t) <$> choose (0, 1)
+
+-- Poisson sample
+occasional :: (Arbitrary a) => Time -> FRGen (Event a)
+occasional t = do
+  times <- poisson t 
+  as    <- sequence $ repeat arbitrary
+  return $ afterEach $ zip times as
+
 -- FIX THIS!
-arb :: (Arbitrary a) => FRGen a
-arb = do
-  a <- arbitrary
-  return $ constant a
+arb :: (Arbitrary a) => Time -> FRGen a
+arb t = do
+  init   <- arbitrary
+  events <- occasional t
+  return $ events >>> hold init
 
 prop_abs_idempotent :: FRGen Bool
 prop_abs_idempotent =
-  forall arb $ arr (abs @Double) >>> arr (>0)
+  forall (arb 1) $ arr (abs @Double) >>> arr (>0.01)
+
+-- Sample with an end time
+type SamplingStrategy = Double -> [Double]
+
+testAt :: FRGen Bool -> [Time] -> IO Bool
+testAt gen samples = do
+  testCase <- generate gen
+  return $ and $ embed testCase ((), [(t, Nothing) | t <- samples]) 
 
 {- ARROW LAWS, dervie FRProp and FRGen from these?
  -             maybe derive FRProp and FRGen from the category theoretical interpretation?

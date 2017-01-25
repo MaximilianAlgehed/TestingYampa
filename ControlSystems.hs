@@ -24,4 +24,4 @@ pid :: Double -- p
 pid p i d = (arr id &&& fork) >>> (pRegulator p) *** (iRegulator i) *** (dRegulator d) >>> second (arr (uncurry (+))) >>> arr (uncurry (+))
 
 firstOrderSystem :: Double -> Double -> LoopTransferFunction
-firstOrderSystem k t = loopPre 0 $ (arr (*k) *** (derivative >>> arr (*t))) >>> arr (uncurry (-)) >>> fork
+firstOrderSystem k t = loopPre 0 $ ((0, 0) --> arr (*k) *** (derivative >>> arr (*t))) >>> arr (uncurry (-)) >>> fork
