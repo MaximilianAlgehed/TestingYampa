@@ -2,13 +2,19 @@
 import FRP.Yampa
 import Test.QuickCheck
 
--- type Property a = a -> Bool
-type FRProp a = SF a  Bool
+-- I'm not liking this, it needs to be re-expressed somehow
+type FRProp a = SF a Bool
 type FRGen  a = Gen (SF () a)
 
-forall :: FRGen a -> FRProp a -> FRGen Bool
-forall gen prop = (>>> prop) <$> gen
+-- Assert that a property only needs to be true before a time t
+before :: Time -> FRProp a -> FRProp a 
+before t sig = (sig &&& time) >>> arr (\(b, tnow) -> if tnow < t then b else True)
 
+-- Assert that a property only needs to be true after a time t
+after :: Time -> FRProp a -> FRProp a 
+after t sig = (sig &&& time) >>> arr (\(b, tnow) -> if tnow > t then b else True)
+
+-- | infinite poisson process
 poisson :: Time -> Gen [Time]
 poisson t = sequence $ repeat $ (\u -> (0 - (log u))/t) <$> choose (0, 1)
 
@@ -19,20 +25,23 @@ occasional t = do
   as    <- sequence $ repeat arbitrary
   return $ afterEach $ zip times as
 
--- FIX THIS!
-arb :: (Arbitrary a) => Time -> FRGen a
-arb t = do
+-- Arbitrary values at poisson distributed times
+arbPoisson :: (Arbitrary a) => Time -> FRGen a
+arbPoisson t = do
   init   <- arbitrary
   events <- occasional t
   return $ events >>> hold init
 
+-- Buggy prop
 prop_abs :: FRGen Bool
-prop_abs =
-  forall (arb 1) $ arr (abs @Double) >>> arr (>0.01)
+prop_abs = do
+  input <- arbPoisson 1
+  return $ input >>> arr (abs @Double) >>> arr (>0.01)
 
 -- Sample with an end time
 type SamplingStrategy = Double -> [Double]
 
+-- Test a property by sampling at some predefined intervals
 testAt :: FRGen Bool -> [Time] -> IO Bool
 testAt gen samples = do
   testCase <- generate gen
