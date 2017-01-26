@@ -1,5 +1,4 @@
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE Arrows #-}
+{-# LANGUAGE TypeApplications, Arrows #-}
 import FRP.Yampa
 import Test.QuickCheck
 
@@ -12,7 +11,7 @@ before :: Time -> FRProp a -> FRProp a
 before t sig =
   proc x ->
     do
-      b    <- sig -< x
+      b    <- sig  -< x
       tnow <- time -< ()
       returnA -< if tnow < t then b else True
 
@@ -28,13 +27,13 @@ after :: Time -> FRProp a -> FRProp a
 after t sig =
   proc x ->
     do
-      b    <- sig -< x
+      b    <- sig  -< x
       tnow <- time -< ()
       returnA -< if tnow > t then b else True
 
 afterOld t sig = (sig &&& time) >>> arr (\(b, tnow) -> if tnow > t then b else True)
 
-prop_after = do
+prop_after t = do
   t <- abs <$> arbitrary
   input <- arbPoisson 1 
   return $ (Main.after t input) &&& (afterOld t input) >>> arr (uncurry (==))
@@ -58,19 +57,17 @@ arbPoisson t = do
   return $ events >>> hold init
 
 -- Buggy prop
-prop_abs_buggy :: FRGen Bool
-prop_abs_buggy = do
-  input <- arbPoisson 1
-  return $ input >>> arr (abs @Double) >>> arr (>0.01)
+prop_abs_buggy :: FRProp Double
+prop_abs_buggy = arr abs >>> arr (>0.01) -- == arr (ans . (> 0.01))
 
 -- Sample with an end time
 type SamplingStrategy = Double -> [Double]
 
 -- Test a property by sampling at some predefined intervals
-testAt :: FRGen Bool -> [Time] -> IO Bool
-testAt gen samples = do
-  testCase <- generate gen
-  return $ and $ embed testCase ((), [(t, Nothing) | t <- samples]) 
+testAt :: (Arbitrary a) => FRProp a -> [Time] -> Gen Bool
+testAt dut samples = do
+  testCase <- arbPoisson 1
+  return $ and $ embed (testCase >>> dut) ((), [(t, Nothing) | t <- samples]) 
 
 {- ARROW LAWS, dervie FRProp and FRGen from these?
                maybe derive FRProp and FRGen from the category theoretical interpretation?
