@@ -58,8 +58,8 @@ arbPoisson t = do
   return $ events >>> hold init
 
 -- Buggy prop
-prop_abs :: FRGen Bool
-prop_abs = do
+prop_abs_buggy :: FRGen Bool
+prop_abs_buggy = do
   input <- arbPoisson 1
   return $ input >>> arr (abs @Double) >>> arr (>0.01)
 
