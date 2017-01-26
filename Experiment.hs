@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE Arrows #-}
 import FRP.Yampa
 import Test.QuickCheck
 
@@ -8,11 +9,35 @@ type FRGen  a = Gen (SF () a)
 
 -- Assert that a property only needs to be true before a time t
 before :: Time -> FRProp a -> FRProp a 
-before t sig = (sig &&& time) >>> arr (\(b, tnow) -> if tnow < t then b else True)
+before t sig =
+  proc x ->
+    do
+      b    <- sig -< x
+      tnow <- time -< ()
+      returnA -< if tnow < t then b else True
+
+beforeOld t sig = (sig &&& time) >>> arr (\(b, tnow) -> if tnow < t then b else True)
+
+prop_before = do
+  t <- abs <$> arbitrary
+  input <- arbPoisson 1 
+  return $ (before t input) &&& (beforeOld t input) >>> arr (uncurry (==))
 
 -- Assert that a property only needs to be true after a time t
 after :: Time -> FRProp a -> FRProp a 
-after t sig = (sig &&& time) >>> arr (\(b, tnow) -> if tnow > t then b else True)
+after t sig =
+  proc x ->
+    do
+      b    <- sig -< x
+      tnow <- time -< ()
+      returnA -< if tnow > t then b else True
+
+afterOld t sig = (sig &&& time) >>> arr (\(b, tnow) -> if tnow > t then b else True)
+
+prop_after = do
+  t <- abs <$> arbitrary
+  input <- arbPoisson 1 
+  return $ (Main.after t input) &&& (afterOld t input) >>> arr (uncurry (==))
 
 -- | infinite poisson process
 poisson :: Time -> Gen [Time]
@@ -48,12 +73,12 @@ testAt gen samples = do
   return $ and $ embed testCase ((), [(t, Nothing) | t <- samples]) 
 
 {- ARROW LAWS, dervie FRProp and FRGen from these?
- -             maybe derive FRProp and FRGen from the category theoretical interpretation?
- - arr id = id
- - arr (f >>> g) = arr f >>> arr g
- - first (arr f) = arr (first f)
- - first (f >>> g) = first f >>> first g
- - first f >>> arr fst = arr fst >>> f
- - first f >>> arr (id *** g) = arr (id *** g) >>> first f
- - first (first f) >>> arr assoc = arr assoc >>> first f
+               maybe derive FRProp and FRGen from the category theoretical interpretation?
+   arr id = id
+   arr (f >>> g) = arr f >>> arr g
+   first (arr f) = arr (first f)
+   first (f >>> g) = first f >>> first g
+   first f >>> arr fst = arr fst >>> f
+   first f >>> arr (id *** g) = arr (id *** g) >>> first f
+   first (first f) >>> arr assoc = arr assoc >>> first f
  -}
